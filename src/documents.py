@@ -32,15 +32,14 @@ class Node:
             return 'Document'
         return 'Query'
 
-    def add_child_nodes(self, dataset: List[NodeDataType]):
+    def add_child_nodes(self, data_list: List[NodeDataType]):
         nodes = []
-        for data in dataset:
+        for data in data_list:
             nodes.append(Node(data=data, parent=self))
         self.child_nodes.extend(nodes)
 
-    def all_nodes(self):
-        nodes = []
-        nodes.append(self)
+    def all_nodes(self) -> List['Node']:
+        nodes = [self]
         for node in self.child_nodes:
             nodes.extend(node.all_nodes())
         return nodes
@@ -56,9 +55,9 @@ class Tree:
     leaf_nodes: List[Node] = field(default_factory=list)
     doc_node_num: int = field(default=0)
 
-    def add_nodes(self, parent: Node, dataset: List[NodeDataType]):
-        self.doc_node_num += len([data for data in dataset if isinstance(data, Document)])
-        parent.add_child_nodes(dataset=dataset)
+    def add_nodes(self, parent: Node, data_list: List[NodeDataType]):
+        self.doc_node_num += len([data for data in data_list if isinstance(data, Document)])
+        parent.add_child_nodes(data_list=data_list)
         self.leaf_nodes.extend(parent.child_nodes)
 
     def all_nodes(self):
