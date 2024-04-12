@@ -3,7 +3,10 @@
 from dataclasses import dataclass, field
 from typing import TypedDict, List, Literal, Union, Optional
 
+import tiktoken
 from langchain_core.documents import Document as LangchainDocument
+from pydantic import BaseModel, PrivateAttr
+from tiktoken import Encoding
 
 
 class DocumentMetadata(TypedDict):
@@ -32,9 +35,9 @@ class Node:
             return 'Document'
         return 'Query'
 
-    def add_child_nodes(self, data_list: List[NodeDataType]):
+    def add_child_nodes(self, dataset: List[NodeDataType]):
         nodes = []
-        for data in data_list:
+        for data in dataset:
             nodes.append(Node(data=data, parent=self))
         self.child_nodes.extend(nodes)
 
@@ -49,15 +52,23 @@ class Node:
         return [node.data for node in nodes if node.node_type == 'Document']
 
 
-@dataclass
-class Tree:
+class Tree(BaseModel):
     root: 'Node'
+    tokens: int = field(default=0)
     leaf_nodes: List[Node] = field(default_factory=list)
     doc_node_num: int = field(default=0)
+    model_name: str = 'gpt-3.5-turbo'
+    _encoding: Optional[Encoding] = PrivateAttr(None)
 
-    def add_nodes(self, parent: Node, data_list: List[NodeDataType]):
-        self.doc_node_num += len([data for data in data_list if isinstance(data, Document)])
-        parent.add_child_nodes(data_list=data_list)
+    def model_post_init(self, __context) -> None:
+        self._encoding = tiktoken.encoding_for_model(self.model_name)
+
+    def add_nodes(self, parent: Node, dataset: List[NodeDataType]):
+        documents = [data for data in dataset if isinstance(data, Document)]
+        self.doc_node_num += len(documents)
+        doc_texts = ''.join(doc.page_content for doc in documents)
+        self.tokens += len(self._encoding.encode(doc_texts))
+        parent.add_child_nodes(dataset=dataset)
         self.leaf_nodes.extend(parent.child_nodes)
 
     def all_nodes(self):
