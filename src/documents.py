@@ -10,8 +10,10 @@ from tiktoken import Encoding
 
 
 class DocumentMetadata(TypedDict):
-    abstract: str
     content: str
+    desc: str
+    title: str
+    keywords: str
     source: dict
 
 
