@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from typing import List
+
 from documents import Query, Document
-
-
-def search(query: str) -> List[Document]:
-    ...
 
 
 def sub_query_and_search(query: str) -> List[Query]:
