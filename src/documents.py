@@ -9,16 +9,16 @@ from pydantic import BaseModel, PrivateAttr
 from tiktoken import Encoding
 
 
-class DocumentMetadata(TypedDict):
+class Metadata(TypedDict):
     content: str
-    desc: str
+    summary: str
     title: str
     keywords: str
     source: dict
 
 
 class Document(LangchainDocument):
-    metadata: DocumentMetadata
+    metadata: Metadata
 
 
 Query = str
