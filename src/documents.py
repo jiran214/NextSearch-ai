@@ -2,18 +2,22 @@
 # -*- coding: utf-8 -*-
 from collections import deque
 from dataclasses import dataclass, field
-from typing import TypedDict, List, Literal, Union, Optional
+from typing import TypedDict, List, Literal, Union, Optional, Dict
 
 import tiktoken
 from langchain_core.documents import Document as LangchainDocument
 from pydantic import BaseModel, PrivateAttr
+from pydantic.v1 import root_validator
 from tiktoken import Encoding
+
+import settings
 
 
 class Metadata(TypedDict):
     content: str
     summary: str
     title: str
+    type: Literal['web_page']
     keywords: str
     source: dict
 
@@ -21,6 +25,17 @@ class Metadata(TypedDict):
 class Document(LangchainDocument):
     metadata: Metadata
 
+    @root_validator()
+    def set_page_content(cls, values: Dict) -> Dict:
+        page_content = None
+        if 'page_content' not in values:
+            for k in settings.PAGE_CONTENT_KEYS:
+                if _v := values['metadata'].get(k):
+                    page_content = _v
+                    break
+            assert page_content, f'Can not find {settings.PAGE_CONTENT_KEYS}'
+            values['page_content'] = page_content
+        return values
 
 Query = str
 NodeDataType = Union[Document, Query]

@@ -3,16 +3,15 @@
 import functools
 import logging
 import math
-from typing import List, Sequence, TypedDict, Optional
+from itertools import chain
+from typing import List, Sequence, TypedDict, Optional, Literal
 
-from langchain.agents import AgentExecutor
 from langchain_core.documents import Document
 from langchain_core.document_loaders import BaseLoader
-from langchain_core.runnables import Runnable
+from langchain_core.tools import BaseTool
 
-import agents
 import settings
-from agents.factory import create_agent
+from agents.factory import create_agent, load_reading_tools, load_searching_tools
 from documents import Node, Tree, NodeDataType
 
 logger = logging.getLogger(__name__)
@@ -24,6 +23,7 @@ class ConfigDict(TypedDict):
     model_name: str
     reader_prompt: str
     searcher_prompt: str
+    search_engine: Literal['google', 'bing', 'duckduckgo']
 
 
 class WebDataMinerLoader(BaseLoader):
@@ -33,10 +33,11 @@ class WebDataMinerLoader(BaseLoader):
         self.tree = Tree(root=Node(data=self.query, parent=None), model_name=config.get('model_name') or 'gpt-3.5-turbo')
         self.reader_prompt = self.config.get('reader_prompt') or settings.READER_PROMPT
         self.searcher_prompt = self.config.get('searcher_prompt') or settings.SEARCHER_PROMPT
-        self.read_tools = []
-        self.search_tools = []
         self.max_documents = self.config.get('max_documents') or math.inf
         self.max_tokens = self.config.get('max_tokens') or math.inf
+
+        self.search_tools: List[BaseTool] = load_searching_tools(self.config.get('search_engine') or settings.DEFAULT_SEARCH_ENGINE)
+        self.read_tools: List[BaseTool] = load_reading_tools()
 
     @property
     def run_info(self):
@@ -46,11 +47,13 @@ class WebDataMinerLoader(BaseLoader):
         }
 
     def load(self) -> List[Document]:
+        for tool in chain(self.read_tools, self.search_tools):
+            tool.return_direct = True
+        reader = create_agent(self.reader_prompt, self.read_tools)
+        searcher = create_agent(self.searcher_prompt, self.search_tools)
+
         while self.tree.leaf_nodes:
             node = self.tree.leaf_nodes.pop()
-
-            reader = create_agent(self.reader_prompt, self.read_tools)
-            searcher = create_agent(self.searcher_prompt, self.search_tools)
 
             if node.node_type == 'Document':
                 # 处理Document
@@ -61,7 +64,7 @@ class WebDataMinerLoader(BaseLoader):
                 agent = searcher
                 context = node.data
 
-            dataset: Optional[List[NodeDataType]] = agent.invoke({'context': context})
+            dataset: Optional[List[NodeDataType]] = agent.invoke({'input': context})
             if dataset is None:
                 # 触发stop，删除节点
                 node.delete()
