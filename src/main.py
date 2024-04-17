@@ -5,10 +5,14 @@ import logging
 import math
 from itertools import chain
 from typing import List, Sequence, TypedDict, Optional, Literal
+from langchain_core.vectorstores import VectorStoreRetriever, VectorStore
 
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
 from langchain_core.document_loaders import BaseLoader
 from langchain_core.tools import BaseTool
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import settings
 from agents.factory import create_agent, load_reading_tools, load_searching_tools
@@ -21,22 +25,25 @@ class ConfigDict(TypedDict):
     max_documents: float
     max_tokens: int
     llm: str
+    num_results: int
     reader_prompt: str
     searcher_prompt: str
     search_engine: Literal['google', 'bing', 'duckduckgo']
 
 
-class WebDataMinerLoader(BaseLoader):
-    def __init__(self, query: str, config: ConfigDict):
-        self.query = query
+class SearchLoader(BaseLoader):
+    def __init__(self, topic: str, config: ConfigDict):
+        self.topic = topic.replace('\n', ' ')
         self.config = config
-        self.tree = Tree(root=Node(data=self.query, parent=None), model_name=config.get('llm') or 'gpt-3.5-turbo')
+        self.tree = Tree(root=Node(data=self.topic, parent=None), model_name=config.get('llm') or 'gpt-3.5-turbo')
         self.reader_prompt = self.config.get('reader_prompt') or settings.READER_PROMPT
         self.searcher_prompt = self.config.get('searcher_prompt') or settings.SEARCHER_PROMPT
         self.max_documents = self.config.get('max_documents') or math.inf
         self.max_tokens = self.config.get('max_tokens') or math.inf
-
-        self.search_tools: List[BaseTool] = load_searching_tools(self.config.get('search_engine') or settings.DEFAULT_SEARCH_ENGINE)
+        self.search_tools: List[BaseTool] = load_searching_tools(
+            self.config.get('search_engine') or settings.DEFAULT_SEARCH_ENGINE,
+            config.get('num_results') or settings.NUM_RESULTS
+        )
         self.read_tools: List[BaseTool] = load_reading_tools()
 
     @property
@@ -64,16 +71,26 @@ class WebDataMinerLoader(BaseLoader):
                 agent = searcher
                 context = node.data
 
-            dataset: Optional[List[NodeDataType]] = agent.invoke({'input': context})
+            dataset: Optional[List[NodeDataType]] = agent.invoke({'input': context, 'topic': self.topic})
             if dataset is None:
                 # 触发stop，删除节点
                 node.delete()
                 continue
-            if not isinstance(dataset, Sequence):
-                dataset = [dataset]
             self.tree.add_nodes(node, dataset=dataset)
             if self.tree.doc_node_num >= self.max_documents:
                 break
             elif self.tree.tokens >= self.max_tokens:
                 break
         return self.tree.all_documents()
+
+
+def split_large_chunk_and_save(docs: List[Document], max_chunk_size=4000, chunk_size=4000, chunk_overlap=0):
+    splitter = RecursiveCharacterTextSplitter(
+        separators=[f"<h{i}" for i in range(1, 5)] + ["<p"] + [
+            '\n\n', '\n', '\r', '......', '!', '.', '。', '？', '！', '##'
+        ],
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        length_function=len
+    )
+

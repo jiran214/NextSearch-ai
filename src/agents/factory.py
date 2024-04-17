@@ -17,7 +17,12 @@ def load_reading_tools():
     return [generate_new_questions(), find_valuable_source(), stop_and_delete()]
 
 
-def load_searching_tools(search_engine):
+def load_searching_tools(search_engine, num_results):
     from tools.search import SearchEngine, search_with_arxiv, search_with_wiki, generate_sub_query
-    return [SearchEngine.from_name(search_engine), search_with_arxiv(), search_with_wiki(), generate_sub_query()]
+    return [
+        SearchEngine.from_engine_name(search_engine, num_results),
+        search_with_arxiv,
+        search_with_wiki,
+        generate_sub_query
+    ]
 

@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 from collections import deque
 from dataclasses import dataclass, field
-from typing import TypedDict, List, Literal, Union, Optional, Dict
+from typing import TypedDict, List, Literal, Union, Optional, Dict, Sequence
 
 import tiktoken
 from langchain_core.documents import Document as LangchainDocument
 from pydantic import BaseModel, PrivateAttr
-from pydantic.v1 import root_validator
+from pydantic.v1 import root_validator, Field
 from tiktoken import Encoding
 
 import settings
@@ -17,25 +17,29 @@ class Metadata(TypedDict):
     content: str
     summary: str
     title: str
-    type: Literal['web_page']
+    type: Literal['web_page', 'essay', 'wiki']
     keywords: str
-    source: dict
+    link: str
 
 
 class Document(LangchainDocument):
     metadata: Metadata
+    page_content: str = Field('')
 
     @root_validator()
     def set_page_content(cls, values: Dict) -> Dict:
         page_content = None
-        if 'page_content' not in values:
+        if not values.get('page_content'):
             for k in settings.PAGE_CONTENT_KEYS:
                 if _v := values['metadata'].get(k):
                     page_content = _v
                     break
-            assert page_content, f'Can not find {settings.PAGE_CONTENT_KEYS}'
             values['page_content'] = page_content
+            assert values['page_content'], f'Can not find {settings.PAGE_CONTENT_KEYS}'
+        if len(values['page_content']) > settings.MAX_CHUNK_SIZE:
+             values['page_content'] = values['page_content'][:settings.MAX_CHUNK_SIZE] + '...'
         return values
+
 
 Query = str
 NodeDataType = Union[Document, Query]
@@ -86,6 +90,8 @@ class Tree(BaseModel):
         self._encoding = tiktoken.encoding_for_model(self.model_name)
 
     def add_nodes(self, parent: Node, dataset: List[NodeDataType]):
+        if not isinstance(dataset, Sequence):
+            dataset = [dataset]
         parent.add_child_nodes(dataset=dataset)
         documents = [data for data in dataset if isinstance(data, Document)]
         if documents:

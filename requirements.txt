@@ -1,3 +1,6 @@
 embedchain
 langchain
 langchain_openai
+wikipedia
+arxiv
+newspaper3k
