@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ConfigDict(TypedDict):
     max_documents: float
     max_tokens: int
-    model_name: str
+    llm: str
     reader_prompt: str
     searcher_prompt: str
     search_engine: Literal['google', 'bing', 'duckduckgo']
@@ -30,7 +30,7 @@ class WebDataMinerLoader(BaseLoader):
     def __init__(self, query: str, config: ConfigDict):
         self.query = query
         self.config = config
-        self.tree = Tree(root=Node(data=self.query, parent=None), model_name=config.get('model_name') or 'gpt-3.5-turbo')
+        self.tree = Tree(root=Node(data=self.query, parent=None), model_name=config.get('llm') or 'gpt-3.5-turbo')
         self.reader_prompt = self.config.get('reader_prompt') or settings.READER_PROMPT
         self.searcher_prompt = self.config.get('searcher_prompt') or settings.SEARCHER_PROMPT
         self.max_documents = self.config.get('max_documents') or math.inf
