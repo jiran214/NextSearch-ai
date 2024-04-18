@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 @tool
 def generate_new_questions(questions: List[Query]) -> List[Query]:
-    """When you have questions about the content of the article or have new ideas, please ask some new questions to
-    use in Internet search"""
+    """When you have questions about the content of the article or have new ideas, please ask some atomicity questions to
+    use in Internet search."""
     return questions
 
 
@@ -23,7 +23,7 @@ def find_valuable_source(links: List[Query]) -> List[Document]:
     """Find valuable links in the resource and do a follow-up search"""
     docs = []
     for url in links:
-        doc = Document(metadata=collect_url_content(url))
+        doc = Document.create(metadata=collect_url_content(url))
         if isinstance(doc, Sequence):
             docs.extend(doc)
         else:

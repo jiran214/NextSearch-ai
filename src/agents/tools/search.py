@@ -8,8 +8,8 @@ from wikipedia import WikipediaPage
 
 from agents.tools.adapters import get_search_fn, SearchResult
 from langchain_community.utilities.arxiv import ArxivAPIWrapper
-from langchain_community.utilities.wikipedia import WikipediaAPIWrapper
-from agents.tools.parsers import collect_url_content, collect_pdf
+from langchain_community.utilities.wikipedia import WikipediaAPIWrapper, WIKIPEDIA_MAX_QUERY_LENGTH
+from agents.tools.parsers import collect_url_content, collect_pdf, clean_html
 from documents import Query, Document, Metadata
 
 arxiv_wrapper = ArxivAPIWrapper()
@@ -23,7 +23,7 @@ class SearchEngine(BaseTool):
     name: str = 'search_engine'
     description: str = (
         "A wrapper around Google Search. "
-        "Useful for when you need to answer questions"
+        "Useful for when you need to get more information"
         "Input should be a search query."
     )
     fn: Callable[[str], List[SearchResult]]
@@ -31,45 +31,48 @@ class SearchEngine(BaseTool):
     @classmethod
     def from_engine_name(cls, engine_name: Literal['google', 'bing', 'duckduckgo', 'tavily', 'searx', 'brave'],
                          num_results: int):
-        fn = get_search_fn(engine_name, num_results)
-        return cls(fn=fn)
+        fn_wrap = get_search_fn(engine_name, num_results)
+        return cls(fn=fn_wrap())
 
     def _run(self, query: str) -> List[Document]:
         results = self.fn(query)
         docs = []
         for res in results:
-            res.update(**collect_url_content(res['link']))
-            doc = Document(metadata=res)
+            metadata = collect_url_content(res['link'])
+            metadata.update({**res, 'query': query})
+            doc = Document.create(metadata=metadata)
             docs.append(doc)
         return docs
 
 
 @tool
-def search_with_wiki(query: str) -> List[Document]:
-    """"A wrapper around Wikipedia. Useful for when you need to answer general questions about
-    people, places, companies, facts, historical events, or other subjects. Input should be a search query."""
+def search_with_wiki(concept: str) -> List[Document]:
+    """"A wrapper around Wikipedia. Useful for when you need to Understand complex concepts."""
     page_titles = wiki_wrapper.wiki_client.search(
-        query[:wiki_wrapper.WIKIPEDIA_MAX_QUERY_LENGTH], results=wiki_wrapper.top_k_results
+        concept[:WIKIPEDIA_MAX_QUERY_LENGTH], results=wiki_wrapper.top_k_results
     )
     docs = []
     for page_title in page_titles[: wiki_wrapper.top_k_results]:
         wiki_page = wiki_wrapper.wiki_client.page(title=page_title, auto_suggest=False)
         if wiki_page:
             wiki_page: WikipediaPage
-            docs.append(Document(metadata=Metadata(
-                content=wiki_page.html(),
+            meta_data = Metadata(
+                content=clean_html(wiki_page.html()),
                 summary=wiki_page.summary,
                 title=wiki_page.title,
                 type='wiki',
                 keywords='',
-                source=wiki_page.url
-            )))
+                source=wiki_page.url,
+                query=concept
+            )
+            doc = Document.create(metadata=meta_data)
+            docs.append(doc)
     return docs
 
 
 @tool
 def search_with_arxiv(query: str) -> List[Document]:
-    """A wrapper around Arxiv.org.Useful for when you need to answer questions about Physics, Mathematics,
+    """A wrapper around Arxiv.org. Useful for when you need to answer questions about Physics, Mathematics,
     Computer Science, Quantitative Biology, Quantitative Finance, Statistics, Electrical Engineering, and Economics
     from scientific articles on arxiv.org.Input should be a search query."""
     if arxiv_wrapper.is_arxiv_identifier(query):
@@ -87,13 +90,14 @@ def search_with_arxiv(query: str) -> List[Document]:
         res.categories.append(res.primary_category)
         keywords = ', '.join(res.categories)
         content = collect_pdf(url=res.pdf_url)
-        doc = Document(metadata=Metadata(
+        doc = Document.create(metadata=Metadata(
             content=content,
             summary=res.summary,
             title=res.title,
             type='essay',
             keywords=keywords,
-            source=res.pdf_url
+            source=res.pdf_url,
+            query=query
         ))
         docs.append(doc)
     return docs
@@ -101,5 +105,5 @@ def search_with_arxiv(query: str) -> List[Document]:
 
 @tool
 def generate_sub_query(queries: List[str]) -> List[Query]:
-    """Generate 3 sub-queries for Internet searches when the information queried is too complex or unclear"""
+    """Generate 3 atomicity sub-queries for Internet searches when the information queried is too complex or unclear."""
     return queries

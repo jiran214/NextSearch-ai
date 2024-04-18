@@ -5,3 +5,6 @@ wikipedia
 arxiv
 newspaper3k
 pypdf
+lxml[html_clean]
+duckduckgo-search
+pycountry

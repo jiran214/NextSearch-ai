@@ -19,14 +19,13 @@ def clean_html(html_text, safe_attrs=None, remove_tags=None, kill_tags=None):
         return ""
     safe_attrs = set(safe_attrs or []) | {'src', 'href', 'alt', 'title', 'data-src'}
     kill_tags = set(kill_tags or []) | {'style', 'noscript'}
-    remove_tags = set(remove_tags or []) | {'html', 'body', 'figure', 'div', 'section', 'noscript', 'footer'}
+    remove_tags = set(remove_tags or []) | {'html', 'body', 'figure', 'div', 'section', 'noscript', 'footer', 'span'}
     cleaner = Cleaner(safe_attrs=safe_attrs, remove_tags=remove_tags, kill_tags=kill_tags)
     cleaned_html = cleaner.clean_html(html_text)
     if 'div' in (remove_tags or []):
         cleaned_html = cleaned_html.replace('<div>', '')
-    cleaned_html = cleaned_html.replace("<img src="">", '').replace('<img alt="" src="" />', '').replace('<img src="">',
-                                                                                                         '').replace(
-        '</div>', '').replace('<svg></svg>', '').replace('<span></span>', '').replace("<p></p>", '').strip()
+    cleaned_html = cleaned_html.replace("<img src="">", '').replace('<img alt="" src="" />', '').\
+        replace('<img src="">', '').replace('</div>', '').replace('<svg></svg>', '').replace('<span></span>', '').replace("<p></p>", '').strip()
     return cleaned_html
 
 

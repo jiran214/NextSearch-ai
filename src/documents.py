@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 from collections import deque
 from dataclasses import dataclass, field
-from typing import TypedDict, List, Literal, Union, Optional, Dict, Sequence
+from typing import TypedDict, List, Literal, Union, Optional, Dict, Sequence, Any
 
 import tiktoken
-from langchain.retrievers import ParentDocumentRetriever
 from langchain_core.documents import Document as LangchainDocument
 from pydantic import BaseModel, PrivateAttr
 from pydantic.v1 import root_validator, Field
@@ -21,25 +20,24 @@ class Metadata(TypedDict):
     type: Literal['web_page', 'essay', 'wiki']
     keywords: str
     source: str
+    query: str
 
 
 class Document(LangchainDocument):
     metadata: Metadata
-    page_content: str = Field('')
+    page_content: Any
 
-    @root_validator()
-    def set_page_content(cls, values: Dict) -> Dict:
-        page_content = None
-        if not values.get('page_content'):
+    @classmethod
+    def create(cls, metadata: Metadata, page_content=None):
+        if not page_content:
             for k in settings.PAGE_CONTENT_KEYS:
-                if _v := values['metadata'].get(k):
+                if _v := metadata.get(k):
                     page_content = _v
                     break
-            values['page_content'] = page_content
-            assert values['page_content'], f'Can not find {settings.PAGE_CONTENT_KEYS}'
-        if len(values['page_content']) > settings.MAX_CHUNK_SIZE:
-             values['page_content'] = values['page_content'][:settings.MAX_CHUNK_SIZE] + '...'
-        return values
+        if page_content and len(page_content) > settings.MAX_CHUNK_SIZE:
+            page_content = page_content[:settings.MAX_CHUNK_SIZE] + '...'
+        assert page_content, f'Can not find {settings.PAGE_CONTENT_KEYS}'
+        return cls(metadata=metadata, page_content=page_content)
 
 
 Query = str
