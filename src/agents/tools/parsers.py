@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import pypdf
 import requests
+from langchain_community.document_loaders.parsers.pdf import PyPDFParser
+from langchain_community.document_loaders.pdf import PyPDFLoader
+from langchain_core.document_loaders import Blob
 from newspaper import Article
 from pydantic import AnyUrl
 
@@ -20,7 +24,9 @@ def clean_html(html_text, safe_attrs=None, remove_tags=None, kill_tags=None):
     cleaned_html = cleaner.clean_html(html_text)
     if 'div' in (remove_tags or []):
         cleaned_html = cleaned_html.replace('<div>', '')
-    cleaned_html = cleaned_html.replace("<img src="">", '').replace('<img alt="" src="" />', '').replace('<img src="">', '').replace('</div>', '').replace('<svg></svg>', '').replace('<span></span>', '').replace("<p></p>", '').strip()
+    cleaned_html = cleaned_html.replace("<img src="">", '').replace('<img alt="" src="" />', '').replace('<img src="">',
+                                                                                                         '').replace(
+        '</div>', '').replace('<svg></svg>', '').replace('<span></span>', '').replace("<p></p>", '').strip()
     return cleaned_html
 
 
@@ -44,8 +50,20 @@ def collect_article(url: str) -> Metadata:
                 title=article.title,
                 type='web_page',
                 keywords=article.keywords,
-                link=str(url)
+                source=str(url)
             )
+
+
+def collect_pdf(url) -> str:
+    loader = PyPDFLoader(url)
+    if loader.web_path:
+        blob = Blob.from_data(open(loader.file_path, "rb").read(), path=loader.web_path)
+    else:
+        blob = Blob.from_path(loader.file_path)
+    with blob.as_bytes_io() as pdf_file_obj:
+        pdf_reader = pypdf.PdfReader(pdf_file_obj, password=None)
+        content = [page.extract_text() for page in pdf_reader.pages]
+    return ''.join(content)
 
 
 def collect_url_content(url: str) -> Metadata:

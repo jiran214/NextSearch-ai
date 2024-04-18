@@ -4,3 +4,4 @@ langchain_openai
 wikipedia
 arxiv
 newspaper3k
+pypdf

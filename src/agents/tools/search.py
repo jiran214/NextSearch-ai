@@ -9,7 +9,7 @@ from wikipedia import WikipediaPage
 from agents.tools.adapters import get_search_fn, SearchResult
 from langchain_community.utilities.arxiv import ArxivAPIWrapper
 from langchain_community.utilities.wikipedia import WikipediaAPIWrapper
-from agents.tools.parsers import collect_url_content
+from agents.tools.parsers import collect_url_content, collect_pdf
 from documents import Query, Document, Metadata
 
 arxiv_wrapper = ArxivAPIWrapper()
@@ -62,7 +62,7 @@ def search_with_wiki(query: str) -> List[Document]:
                 title=wiki_page.title,
                 type='wiki',
                 keywords='',
-                link=wiki_page.url
+                source=wiki_page.url
             )))
     return docs
 
@@ -86,12 +86,14 @@ def search_with_arxiv(query: str) -> List[Document]:
         res: Result
         res.categories.append(res.primary_category)
         keywords = ', '.join(res.categories)
+        content = collect_pdf(url=res.pdf_url)
         doc = Document(metadata=Metadata(
+            content=content,
             summary=res.summary,
             title=res.title,
             type='essay',
             keywords=keywords,
-            link=res.pdf_url
+            source=res.pdf_url
         ))
         docs.append(doc)
     return docs

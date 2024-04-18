@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from pathlib import Path
 
 SEARCHER_PROMPT = (
     'You are a search assistant that helps users search for Internet resources'
@@ -15,3 +16,4 @@ DEFAULT_SEARCH_ENGINE = 'duckduckgo'
 PAGE_CONTENT_KEYS = ['summary', 'title', 'keywords', 'content']
 MAX_CHUNK_SIZE = 4000
 NUM_RESULTS = 5
+DATA_DIR = Path('./')

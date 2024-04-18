@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import TypedDict, List, Literal, Union, Optional, Dict, Sequence
 
 import tiktoken
+from langchain.retrievers import ParentDocumentRetriever
 from langchain_core.documents import Document as LangchainDocument
 from pydantic import BaseModel, PrivateAttr
 from pydantic.v1 import root_validator, Field
@@ -19,7 +20,7 @@ class Metadata(TypedDict):
     title: str
     type: Literal['web_page', 'essay', 'wiki']
     keywords: str
-    link: str
+    source: str
 
 
 class Document(LangchainDocument):
@@ -83,11 +84,11 @@ class Tree(BaseModel):
     tokens: int = field(default=0)
     leaf_nodes: deque[Node] = field(default_factory=deque)
     doc_node_num: int = field(default=0)
-    model_name: str = 'gpt-3.5-turbo'
+    embedding_model: str = 'gpt-3.5-turbo'
     _encoding: Optional[Encoding] = PrivateAttr(None)
 
     def model_post_init(self, __context) -> None:
-        self._encoding = tiktoken.encoding_for_model(self.model_name)
+        self._encoding = tiktoken.encoding_for_model(self.embedding_model)
 
     def add_nodes(self, parent: Node, dataset: List[NodeDataType]):
         if not isinstance(dataset, Sequence):

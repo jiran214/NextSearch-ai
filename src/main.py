@@ -5,13 +5,11 @@ import logging
 import math
 from itertools import chain
 from typing import List, Sequence, TypedDict, Optional, Literal
-from langchain_core.vectorstores import VectorStoreRetriever, VectorStore
-
-from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
-from langchain_core.retrievers import BaseRetriever
 from langchain_core.document_loaders import BaseLoader
+from langchain_core.language_models import BaseLanguageModel
 from langchain_core.tools import BaseTool
+from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import settings
@@ -24,18 +22,19 @@ logger = logging.getLogger(__name__)
 class ConfigDict(TypedDict):
     max_documents: float
     max_tokens: int
-    llm: str
+    embedding_model: str
     num_results: int
     reader_prompt: str
     searcher_prompt: str
     search_engine: Literal['google', 'bing', 'duckduckgo']
+    openai_api_key: str
 
 
 class SearchLoader(BaseLoader):
-    def __init__(self, topic: str, config: ConfigDict):
+    def __init__(self, topic: str, config: ConfigDict, llm: Optional[BaseLanguageModel] = None):
         self.topic = topic.replace('\n', ' ')
         self.config = config
-        self.tree = Tree(root=Node(data=self.topic, parent=None), model_name=config.get('llm') or 'gpt-3.5-turbo')
+        self.tree = Tree(root=Node(data=self.topic, parent=None), embedding_model=config.get('embedding_model') or 'text-embedding-ada-002')
         self.reader_prompt = self.config.get('reader_prompt') or settings.READER_PROMPT
         self.searcher_prompt = self.config.get('searcher_prompt') or settings.SEARCHER_PROMPT
         self.max_documents = self.config.get('max_documents') or math.inf
@@ -45,6 +44,7 @@ class SearchLoader(BaseLoader):
             config.get('num_results') or settings.NUM_RESULTS
         )
         self.read_tools: List[BaseTool] = load_reading_tools()
+        self.llm = llm or ChatOpenAI(openai_api_key=self.config.get('openai_api_key'))
 
     @property
     def run_info(self):
@@ -56,8 +56,8 @@ class SearchLoader(BaseLoader):
     def load(self) -> List[Document]:
         for tool in chain(self.read_tools, self.search_tools):
             tool.return_direct = True
-        reader = create_agent(self.reader_prompt, self.read_tools)
-        searcher = create_agent(self.searcher_prompt, self.search_tools)
+        reader = create_agent(self.reader_prompt, self.read_tools, self.llm)
+        searcher = create_agent(self.searcher_prompt, self.search_tools, self.llm)
 
         while self.tree.leaf_nodes:
             node = self.tree.leaf_nodes.pop()
@@ -72,6 +72,12 @@ class SearchLoader(BaseLoader):
                 context = node.data
 
             dataset: Optional[List[NodeDataType]] = agent.invoke({'input': context, 'topic': self.topic})
+            for data in dataset:
+                if isinstance(data, Document):
+                    logger.info(f"New Document: source={data.source} page_content={data.page_content}")
+                else:
+                    logger.info(f"New Query: {data}")
+
             if dataset is None:
                 # 触发stop，删除节点
                 node.delete()

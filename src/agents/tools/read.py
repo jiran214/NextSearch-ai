@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
-from typing import List
+from typing import List, Sequence
 
 from langchain_core.tools import tool
 
@@ -21,7 +21,13 @@ def generate_new_questions(questions: List[Query]) -> List[Query]:
 @tool
 def find_valuable_source(links: List[Query]) -> List[Document]:
     """Find valuable links in the resource and do a follow-up search"""
-    docs = [Document(metadata=collect_url_content(url)) for url in links]
+    docs = []
+    for url in links:
+        doc = Document(metadata=collect_url_content(url))
+        if isinstance(doc, Sequence):
+            docs.extend(doc)
+        else:
+            docs.append(doc)
     return docs
 
 
