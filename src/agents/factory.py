@@ -4,12 +4,14 @@ import logging
 from typing import Union, List
 
 from langchain.agents.output_parsers.openai_tools import OpenAIToolsAgentOutputParser
+from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.agents import AgentAction, AgentFinish
 from langchain_core.language_models import BaseLanguageModel
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import chain
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import chain, Runnable
 from langchain_core.tools import BaseTool
 
+from agents.tools.parsers import ReadingResult
 from utils import get_list, get_os_language
 
 logger = logging.getLogger(__name__)
@@ -23,7 +25,6 @@ def tool_call(tool_map):
         docs = []
         for action in output:
             tool: BaseTool = tool_map[action.tool]
-            # print(f"Using {action.tool} input:{action.tool_input}")
             logger.info(f"Using {action.tool} input:{action.tool_input}")
             tool_output = tool.run(action.tool_input)
             if tool_output:
@@ -32,7 +33,7 @@ def tool_call(tool_map):
     return fn
 
 
-def create_agent(system, tools, llm: BaseLanguageModel):
+def create_searcher(system, tools, llm: BaseLanguageModel):
     prompt = ChatPromptTemplate.from_messages([
         ("system", system + f'Please use {get_os_language()} language'),
         ("human", "{input}")
@@ -42,9 +43,18 @@ def create_agent(system, tools, llm: BaseLanguageModel):
     return agent
 
 
-def load_reading_tools():
-    from agents.tools.read import generate_new_questions, find_valuable_source, stop_and_delete
-    return [generate_new_questions, find_valuable_source, stop_and_delete]
+def create_reader(system, llm: BaseLanguageModel, schema=ReadingResult):
+    parser = JsonOutputParser(pydantic_object=schema)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system + f'Please use {get_os_language()} language'),
+        ("human", "{input}\n" + parser.get_format_instructions())
+    ])
+    agent = prompt | llm | parser
+    return agent
+
+
+def create_workflow(searcher: Runnable, reader: Runnable):
+    return searcher | reader
 
 
 def load_searching_tools(search_engine, num_results):

@@ -3,7 +3,6 @@
 import functools
 import logging
 import math
-from itertools import chain
 from typing import List, Sequence, TypedDict, Optional, Literal
 from langchain_core.documents import Document
 from langchain_core.document_loaders import BaseLoader
@@ -13,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import settings
-from agents.factory import create_agent, load_reading_tools, load_searching_tools
+from agents.factory import create_searcher, load_reading_tools, load_searching_tools, create_reader
 from documents import Node, Tree, NodeDataType
 
 logger = logging.getLogger(__name__)
@@ -34,6 +33,7 @@ class SearchLoader(BaseLoader):
     def __init__(self, topic: str, config: Optional[ConfigDict] = None, llm: Optional[BaseLanguageModel] = None):
         config = config or {}
         self.topic = topic.replace('\n', ' ')
+        self.docs = []
         self.tree = Tree(root=Node(data=self.topic, parent=None), embedding_model=config.get('embedding_model') or 'text-embedding-ada-002')
         self.reader_prompt = config.get('reader_prompt') or settings.READER_PROMPT
         self.searcher_prompt = config.get('searcher_prompt') or settings.SEARCHER_PROMPT
@@ -47,8 +47,8 @@ class SearchLoader(BaseLoader):
         self.llm = llm or ChatOpenAI(openai_api_key=config.get('openai_api_key'))
         logger.info(f"SearchLoader initialize...")
 
-        self.reader = create_agent(self.reader_prompt, self.read_tools, self.llm)
-        self.searcher = create_agent(self.searcher_prompt, self.search_tools, self.llm)
+        self.reader = create_reader(self.reader_prompt, self.llm)
+        self.searcher = create_searcher(self.searcher_prompt, self.search_tools, self.llm)
 
     def load(self) -> List[Document]:
         logger.info(f"SearchLoader Start Running...")

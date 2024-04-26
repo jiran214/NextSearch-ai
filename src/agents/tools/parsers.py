@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from typing import List
+
 import pypdf
 import requests
 from langchain_community.document_loaders.parsers.pdf import PyPDFParser
 from langchain_community.document_loaders.pdf import PyPDFLoader
 from langchain_core.document_loaders import Blob
 from newspaper import Article
-from pydantic import AnyUrl
+from pydantic import AnyUrl, BaseModel, Field
 
 from documents import Metadata
 from lxml.html.clean import Cleaner
@@ -67,3 +69,10 @@ def collect_pdf(url) -> str:
 
 def collect_url_content(url: str) -> Metadata:
     return collect_article(url)
+
+
+class ReadingResult(BaseModel):
+    next_search_queries: List[str] = Field(description='下一步搜索内容')
+    valuable_links: List[str] = Field(description='参考内容中有价值的链接')
+    score_list: List[int] = Field(description='内容评分列表')
+    summary: str = Field(description='总结')
